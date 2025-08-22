@@ -1,0 +1,91 @@
+name: Lint Kit Analyzer
+description: "Run Dart static analysis using Lint Kit"
+
+inputs:
+  fatal-warnings:
+    description: "Whether to treat warnings as errors"
+    required: false
+    default: "false"
+  fatal-infos:
+    description: "Whether to treat info as errors"
+    required: false
+    default: "false"
+  workspace-root:
+    description: "The root of the workspace"
+    required: false
+    default: "."
+  paths-to-analyze:
+    description: "Files and or directories to analyze"
+    required: false
+    default: "."
+  verbose:
+    description: "Verbose mode"
+    required: false
+    default: "false"
+  package-logs:
+    description: "Always package logs"
+    required: false
+    default: "false"
+  package-logs-on-failure:
+    description: "Package logs on failure"
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    - name: Set Lint Kit Path
+      id: set-lint-kit-path
+      shell: bash
+      run: |
+        echo "LINT_KIT_CACHE=${HOME}/.lint_kit" >> $GITHUB_OUTPUT
+
+    - name: Restore Lint Kit Cache
+      id: restore-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.set-lint-kit-path.outputs.LINT_KIT_CACHE }}
+        key: ${{ runner.os }}-lint_kit_cache-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-lint_kit_cache-
+
+    - name: Setup Dart
+      uses: dart-lang/setup-dart@v1.7.1
+
+    - name: Install Lint Kit CLI
+      id: install-cli
+      shell: bash
+      run: dart pub global activate lint_kit_cli
+
+    - name: Start Up LSP
+      shell: bash
+      run: lint_kit server start-lsp ${{ inputs.verbose && '--loud' }}
+
+    - name: Start Up Analyzer
+      shell: bash
+      run: lint_kit server start-analyzer --workspace ${{ inputs.workspace-root || '.' }} ${{ inputs.verbose && '--loud' }}
+
+    - name: Analyze Workspace
+      shell: bash
+      run: lint_kit analyze ${{ inputs.paths-to-analyze || '.' }} ${{ inputs.fatal-warnings && '--fatal-warnings' }} ${{ inputs.fatal-infos && '--fatal-infoss' }}
+
+    - name: Package Logs
+      id: package-logs
+      if: ${{ (inputs.package-logs-on-failure && failure()) || (always() && inputs.package-logs) && steps.install-cli.outcome == 'success' }}
+      shell: bash
+      run: lint_kit logs package
+
+    - name: Upload Logs
+      if: ${{ (inputs.package-logs-on-failure && failure()) || (always() && inputs.package-logs) && steps.package-logs.outcome == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-kit-logs
+        path: lint_kit_logs.zip
+
+    - name: Save Lint Kit Cache
+      uses: actions/cache/save@v4
+      if: always()
+      with:
+        path: ${{ steps.set-lint-kit-path.outputs.LINT_KIT_CACHE }}
+        key: ${{ runner.os }}-lint_kit_cache-${{ github.run_id }}

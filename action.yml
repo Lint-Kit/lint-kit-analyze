@@ -68,7 +68,7 @@ runs:
 
     - name: Analyze Workspace
       shell: bash
-      run: lint_kit analyze ${{ inputs.paths-to-analyze || '.' }} ${{ inputs.fatal-warnings && '--fatal-warnings' }} ${{ inputs.fatal-infos && '--fatal-infoss' }}
+      run: lint_kit analyze ${{ inputs.paths-to-analyze || '.' }} ${{ inputs.fatal-warnings && '--fatal-warnings' }} ${{ inputs.fatal-infos && '--fatal-infos' }}
 
     - name: Package Logs
       id: package-logs
